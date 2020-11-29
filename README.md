@@ -13,7 +13,7 @@ go get -u -v github.com/gorilla/websocket
 ## 客戶端
 
 - 客戶端每5秒會傳送現在時間給服務器
-- 客戶端每2秒會傳送pin給服務器
+- 客戶端每2秒會傳送ping給服務器
 
 ## 服務器
 
