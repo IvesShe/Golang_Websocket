@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/wonderivan/logger"
 )
 
 // 定義flag參數，這邊會返回一個相應的指針
@@ -29,7 +30,7 @@ func main() {
 
 	// 處理連接的網址
 	u := url.URL{Scheme: "ws", Host: *addr, Path: "/echo"}
-	log.Printf("connecting to %s", u.String())
+	logger.Debug("connecting to %s", u.String())
 
 	// 連接服務器
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -50,10 +51,10 @@ func main() {
 			// 一直待命讀資料
 			_, message, err := c.ReadMessage()
 			if err != nil {
-				log.Println("read:", err)
+				logger.Debug("read:", err)
 				return
 			}
-			log.Printf("recv: %s", message)
+			logger.Debug("recv: %s", message)
 		}
 	}()
 
@@ -62,6 +63,7 @@ func main() {
 	// 它會調整時間間隔或者丟棄tick信自以適應反應慢的接收者
 	// 如果d <= 0 會觸發panic，關閉該Ticker可以釋放相關資源
 	ticker := time.NewTicker(5 * time.Second)
+	heartbeat := time.NewTicker(2 * time.Second)
 
 	// 預先停止，此行在離開main時執行
 	defer ticker.Stop()
@@ -73,12 +75,24 @@ func main() {
 			return
 		case t := <-ticker.C:
 			// ticker定義的時間到了會執行這邊
-			log.Println("<-ticker.C")
-			err := c.WriteMessage(websocket.TextMessage, []byte(t.String()))
+			//log.Println("<-ticker.C")
+			message := t.String()
+			err := c.WriteMessage(websocket.TextMessage, []byte(message))
 			if err != nil {
-				log.Println("write:", err)
+				logger.Debug("write:", err)
 				return
 			}
+			logger.Debug("write:", message)
+		case <-heartbeat.C:
+			// ticker定義的時間到了會執行這邊
+			//log.Println("<-heartbeat.C")
+			message := "ping"
+			err := c.WriteMessage(websocket.TextMessage, []byte(message))
+			if err != nil {
+				logger.Debug("write:", err)
+				return
+			}
+			logger.Debug("write:", message)
 		case <-interrupt:
 			// 強制執行程序時，會進入這邊
 			log.Println("interrupt")
@@ -88,16 +102,16 @@ func main() {
 			// 關閉連結並寄出close的的id
 			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
-				log.Println("write close:", err)
+				logger.Debug("write close::", err)
 				return
 			}
 			select {
 			case <-done:
 				// 結束完成會執行這邊
-				log.Println("<-done")
+				logger.Debug("<-done")
 			case <-time.After(10 * time.Second):
 				// 超時處理，防止select阻塞著
-				log.Println("<-time")
+				logger.Debug("<-time")
 			}
 			return
 		}

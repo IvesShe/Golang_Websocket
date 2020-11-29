@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
+	"github.com/wonderivan/logger"
 )
 
 // 定義flag參數，這邊會返回一個相應的指針
@@ -16,29 +17,42 @@ var upgrader = websocket.Upgrader{} // use default options
 
 func echo(w http.ResponseWriter, r *http.Request) {
 	// 開啟websocket服務
-	c, err := upgrader.Upgrade(w, r, nil)
+	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Print("upgrade:", err)
+		logger.Debug("upgrade:", err)
 		return
 	}
+	logger.Debug("服務器啟動，監聽端口8080中......")
 
 	// 預先關閉，此行在離開echo時會執行
-	defer c.Close()
+	defer ws.Close()
 
 	// 一直待命收資料
 	for {
 		// 讀取資料
-		mt, message, err := c.ReadMessage()
+		mt, message, err := ws.ReadMessage()
 		if err != nil {
-			log.Println("read:", err)
+			logger.Debug("read:", err)
 			break
 		}
-		log.Printf("recv: %s", message)
 
+		logger.Debug("recv: %s", message)
+		// 如果是ping
+		if string(message) == "ping" {
+			// 就回pong
+			mes := "pong"
+			logger.Debug("心跳")
+			// 將讀到的資料送出
+			err = ws.WriteMessage(mt, []byte(mes))
+			logger.Debug("write:", string(mes))
+		} else {
+			// 將讀到的資料送出
+			err = ws.WriteMessage(mt, message)
+			logger.Debug("write:", string(message))
+		}
 		// 將讀到的資料送出
-		err = c.WriteMessage(mt, message)
 		if err != nil {
-			log.Println("write:", err)
+			logger.Debug("write:", err)
 			break
 		}
 	}
@@ -50,6 +64,8 @@ func home(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	logger.Debug("程序啟動")
+
 	// 調用flag.Parse()解析命令行參數到定義的flag
 	flag.Parse()
 
@@ -62,8 +78,9 @@ func main() {
 	// 處理/的路由
 	http.HandleFunc("/", home)
 
-	// addr是指針，所以加*取值
+	// 啟動服務，addr是指針，所以加*取值，若有錯會回傳錯誤log
 	log.Fatal(http.ListenAndServe(*addr, nil))
+
 }
 
 // 網頁html
